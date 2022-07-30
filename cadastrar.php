@@ -1,5 +1,10 @@
+<?php 
+		require('config/conect.php');
+		require('modules/functions.php');	
+?>
+
 <?php
-	require('config/conect.php');
+
 	$erro_geral = '';
 	$erro_nome = '';
 	$erro_email = '';
@@ -10,13 +15,15 @@
 	if(isset($_POST['nome'], $_POST['email'], $_POST['senha'], $_POST['repete_senha'], $_POST['termos'])){
 		$nome = limparPost($_POST['nome']);
 		$email = limparPost($_POST['email']);
-		$senha = $_POST['senha'];
-		$repete_senha = $_POST['repete_senha'];
+		$senha = limparPost($_POST['senha']);
+		$senha_cript = sha1($senha);
+		$repete_senha = limparPost($_POST['repete_senha']);
 		$termos = $_POST['termos'];
 
-		if(empty($nome) || empty($email) || empty($senha) || empty($repete_senha) || empty($termos)){
+		if((empty($nome) or empty($email) or empty($senha) or empty($repete_senha) or empty($termos))){
 			$erro_geral = "Todos os campos são obrigatórios";
 		}else{
+
 			if(!preg_match("/^[a-zA-Z-' ]*$/",$nome)){
 				$erro_nome = 'Só aceitamos Letras e Espaços em branco!';
 			}
@@ -30,24 +37,40 @@
 			}
 			
 			if($repete_senha !== $senha){
-				$erro_repete_senha = "Por favor repita a senha corretamente";
+				$erro_repete_senha = "Senha e repetição não são iguais";
 			}
 
 			if($termos !== 'ok'){
 				$erro_termo = "Checkbox DESATIVADO!";
 			}
+
+			if((strlen($erro_nome) <= 0) && (strlen($erro_senha) <= 0) && (strlen($erro_senha) <= 0) && (strlen($erro_repete_senha) <= 0) && (strlen($erro_termo) <= 0)){
+				
+				$sql = $pdo->prepare("SELECT * FROM usuario WHERE email = ? LIMIT 1");
+				$sql->execute(Array($email));
+
+				$usuario = $sql->fetch();
+				
+				if(!$usuario){
+					$recupera_senha = '';
+					$token = '';
+					$status = 'novo';
+					$data_cadastro = date('d-m-Y');
+
+					$sql = $pdo->prepare("INSERT INTO usuario VALUES (null, ?, ?, ?, ?, ?, ?, ?)");
+					if($sql->execute(Array($nome, $email, $senha_cript, $recupera_senha, $token, $status, $data_cadastro))){
+						header("Location: index.php?result=ok");
+					}
+				}else{
+
+					$erro_geral = "Usuário já cadastrado";
+
+				}
+			}
+
 		}
-
 	}
 
-
-	function limparPost($data){
-		$data = trim($data);
-		$data = stripslashes($data);
-		$data = htmlspecialchars($data);
-		
-		return $data;
-	}
 ?>
 
 <!DOCTYPE html>
@@ -79,7 +102,7 @@
 						<input
 							type="text"
 							name="nome"
-							placeholder="Digite seu nome completo"
+							placeholder="Digite seu nome completo" required <?php if(isset($nome)) echo "value='$nome'"; ?>
 						/>
 					</div>
 
@@ -97,7 +120,7 @@
 						<input
 							type="email"
 							name="email"
-							placeholder="Digite seu email"
+							placeholder="Digite seu email" required <?php if(isset($email)) echo "value='$email'"; ?>
 						/>
 					</div>
 					<?php 
@@ -113,7 +136,7 @@
 						<input
 							type="password"
 							name="senha"
-							placeholder="Digite sua senha"
+							placeholder="Digite sua senha" required <?php if(isset($senha)) echo "value='$senha'"; ?>
 						/>
 					</div>
 					<?php 
@@ -129,7 +152,7 @@
 						<input
 							type="password"
 							name="repete_senha"
-							placeholder="Repita sua senha"
+							placeholder="Repita sua senha" required <?php if(isset($repete_senha)) echo "value='$repete_senha'"; ?>
 						/>
 					</div>
 					<?php 
@@ -140,7 +163,7 @@
 				</div>
 
 				<div id="termo" class="input-form">
-					<input type="checkbox" id="termos" name="termos" value="ok"/>
+					<input type="checkbox" id="termos" name="termos" value="ok" required/>
 					<label for="termos">Ao se cadastrar você concorda com a nossa <a class="link-termo" href="#">Política de Privacidade</a> e os <a class="link-termo" href="#">Termos de Uso.</a></a></label>
 					<?php 
 						if(strlen($erro_termo) > 0){
